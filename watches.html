@@ -510,6 +510,13 @@
             transform: translateY(-3px);
             box-shadow: 0 5px 15px rgba(0, 242, 254, 0.2);
         }
+        .social-link-card.phone:hover {
+            border-color: var(--accent-color);
+            background: rgba(85, 197, 209, 0.05);
+            color: var(--accent-color);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(85, 197, 209, 0.2);
+        }
         .social-link-card svg {
             width: 20px;
             height: 20px;
@@ -524,7 +531,7 @@
             right: auto; 
             background-color: rgba(18, 18, 18, 0.85);
             color: var(--accent-color);
-            border: none;
+            border: none; /* تم إزالة الإطار السمائي بنجاح */
             width: 45px;
             height: 45px;
             border-radius: 50%;
@@ -550,6 +557,8 @@
             box-shadow: 0 0 15px rgba(85, 197, 209, 0.6);
             transform: translateY(-3px);
         }
+
+        
 
         @media (max-width: 480px) {
             .nav-bar {
@@ -659,6 +668,7 @@
             <a href="https://tiktok.com/@USERNAME" target="_blank" class="social-link-card tiktok">
                 <span>🎵 صفحة تيك توك</span>
             </a>
+
         </div>
     </div>
 
@@ -667,81 +677,129 @@
 <button class="scroll-top-btn" id="scrollTopBtn" onclick="scrollToTop()">↑</button>
 
 
-<script>
-    function loadStoredProducts() {
-        let products = JSON.parse(localStorage.getItem('myProducts')) || [];
-        
-        // 1. أولاً: تصفير كل الأقسام بوضع رسالة فارغة (مرة واحدة فقط عند التحميل)
-        const categories = ['watches', 'rolex', 'patek', 'audemars', 'cartier', 'omega', 'tag', 'hublot'];
-        categories.forEach(cat => {
-            let el = document.getElementById(`container-${cat}`);
-            if(el) el.innerHTML = `<p class="no-items-msg" style="color:#555; font-size:0.9rem; padding:10px;">لا توجد قطع معروضة في هذا القسم حالياً.</p>`;
-        });
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-        // 2. ثانياً: المرور على المنتجات وإضافتها للأقسام بشكل تراكمي
-        products.forEach(p => {
-            let catName = p.category === 'watches' ? 'rolex' : p.category;
-            let targetContainerId = `container-${catName}`;
-            let targetGrid = document.getElementById(targetContainerId);
-            
-            if (targetGrid) {
-                // إذا كان القسم يحتوي على رسالة "لا توجد قطع"، نقوم بمسحها (مرة واحدة للمنتج الأول فقط في هذا القسم)
-                let noItemsMsg = targetGrid.querySelector('.no-items-msg');
-                if (noItemsMsg) {
-                    targetGrid.innerHTML = '';
-                }
+    // 1. إعدادات Firebase الخاصة بمشروعك (استبدل هذه القيم بالقيم الخاصة بمشروعك من لوحة تحكم Firebase)
+    const firebaseConfig = {
+            apiKey: "AIzaSyCKqZSI29w9Cxb10-WmSII62pbtS3ZQGuc",
+            authDomain: "man-zone-iq.firebaseapp.com",
+            projectId: "man-zone-iq",
+            storageBucket: "man-zone-iq.appspot.com",
+            messagingSenderId: "192366160615",
+            appId: "1:192366160615:web:5d92d2ff0c7ed68d641042"
+    };
 
-                let badgesHTML = '';
+    // تهيئة Firebase و Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-                if (p.isOutOfStock) {
-                    badgesHTML += '<span class="badge out-of-stock">نفذت الكمية</span>';
-                } else {
-                    if (p.isBestSeller) {
-                        badgesHTML += '<span class="badge">الأكثر مبيعاً</span>';
-                    }
-                    if (p.isNew) {
-                        badgesHTML += '<span class="badge new-arrival">منتج جديد</span>';
-                    }
-                }
-
-                let brandTitle = p.brand || 'Premium';
-                let desc = `ساعة فاخرة ومميزة من فئة ${brandTitle}، مصممة بدقة واحترافية عالية لتناسب أسلوب حياتك الأنيق واليومي.`;
-
-                // نستخدم += لإضافة المنتج الجديد بجانب المنتجات السابقة دون حذفها!
-                targetGrid.innerHTML += `
-                    <div class="product-card">
-                        <div class="product-image">
-                            <div class="badges-container">
-                                ${badgesHTML}
-                            </div>
-                            <img class="${p.isOutOfStock ? 'blurred-img' : ''}" src="${p.img || './items/1.jpg'}" onerror="this.src='https://via.placeholder.com/320x320/050505/fff?text=${encodeURIComponent(p.name)}'" alt="${p.name}">
-                        </div>
-                        <div class="product-info">
-                            <h3 class="product-title">${p.name}</h3>
-                            <p class="product-desc">${desc}</p>
-                            <div class="product-footer">
-                                <span class="product-price">${p.price ? p.price + ' د.ع' : 'حسب الطلب'}</span>
-                                <button onclick="addToCart('${p.name.replace(/'/g, "\\'")}')" class="buy-btn" ${p.isOutOfStock ? 'disabled style="border-color:#555; color:#555;"' : ''}>
-                                    ${p.isOutOfStock ? 'غير متوفر' : 'إضافة للسلة 🛒'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-        });
-    }
-
+    // متغير السلة
     let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
-    function toggleCart() {
-        document.getElementById('cartSidebar').classList.toggle('open');
+    // 2. دالة جلب المنتجات من Firestore وعرضها في الموقع
+    async function loadProductsFromFirestore() {
+        const categories = ['watches', 'rolex', 'patek', 'audemars', 'cartier', 'omega', 'tag', 'hublot'];
+        
+        // تفريغ الأقسام وعرض رسالة تحميل مؤقتة
+        categories.forEach(cat => {
+            let el = document.getElementById(`container-${cat}`);
+            if(el) el.innerHTML = `<p class="no-items-msg" style="color:#555; font-size:0.9rem; padding:10px;">جاري تحميل المنتجات...</p>`;
+        });
+
+        try {
+            // جلب الوثائق من تجميعة products
+            const querySnapshot = await getDocs(collection(db, "products"));
+            
+            // تتبع الأقسام التي تم إضافة منتجات إليها لتنظيف رسالة التحميل
+            const clearedContainers = new Set();
+
+            querySnapshot.forEach((doc) => {
+                const p = doc.data();
+                
+                // تحديد القسم المناسب بناءً على حقل category في قاعدة البيانات
+                let catName = p.category === 'watches' ? 'rolex' : p.category;
+                let targetContainerId = `container-${catName}`;
+                let targetGrid = document.getElementById(targetContainerId);
+                
+                if (targetGrid) {
+                    // تفريغ رسالة التحميل أو "لا توجد قطع" عند أول منتج يدخل القسم
+                    if (!clearedContainers.has(targetContainerId)) {
+                        targetGrid.innerHTML = '';
+                        clearedContainers.add(targetContainerId);
+                    }
+
+                    // إعداد الشارات (Badges) بناءً على القيم البولينية (Boolean) في الفايربيس
+                    let badgesHTML = '';
+                    if (p.isOutOfStock) {
+                        badgesHTML += '<span class="badge out-of-stock">نفذت الكمية</span>';
+                    } else {
+                        if (p.isBestSeller) {
+                            badgesHTML += '<span class="badge">الأكثر مبيعاً</span>';
+                        }
+                        if (p.isNew) {
+                            badgesHTML += '<span class="badge new-arrival">منتج جديد</span>';
+                        }
+                    }
+
+                    let brandTitle = p.brand || 'Premium';
+                    let desc = `ساعة فاخرة ومميزة من فئة ${brandTitle}، مصممة بدقة واحترافية عالية لتناسب أسلوب حياتك الأنيق واليومي.`;
+
+                    // بناء كارت المنتج وضخه في قسمه المناسب
+                    targetGrid.innerHTML += `
+                        <div class="product-card">
+                            <div class="product-image">
+                                <div class="badges-container">
+                                    ${badgesHTML}
+                                </div>
+                                <img class="${p.isOutOfStock ? 'blurred-img' : ''}" src="${p.img || './items/1.jpg'}" onerror="this.src='https://via.placeholder.com/320x320/050505/fff?text=${encodeURIComponent(p.name)}'" alt="${p.name}">
+                            </div>
+                            <div class="product-info">
+                                <h3 class="product-title">${p.name}</h3>
+                                <p class="product-desc">${desc}</p>
+                                <div class="product-footer">
+                                    <span class="product-price">${p.price ? p.price + ' د.ع' : 'حسب الطلب'}</span>
+                                    <button class="buy-btn" data-product-name="${p.name.replace(/'/g, "\\'")}" ${p.isOutOfStock ? 'disabled style="border-color:#555; color:#555;"' : ''}>
+                                        ${p.isOutOfStock ? 'غير متوفر' : 'إضافة للسلة 🛒'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            // وضع رسالة "لا توجد قطع" للأقسام التي ظلت فارغة ولم يصلها أي منتج من Firestore
+            categories.forEach(cat => {
+                let targetContainerId = `container-${cat}`;
+                if (!clearedContainers.has(targetContainerId)) {
+                    let el = document.getElementById(targetContainerId);
+                    if(el) el.innerHTML = `<p class="no-items-msg" style="color:#555; font-size:0.9rem; padding:10px;">لا توجد قطع معروضة في هذا القسم حالياً.</p>`;
+                }
+            });
+
+            // ربط أحداث الضغط على أزرار الشراء ديناميكياً
+            document.querySelectorAll('.buy-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const prodName = this.getAttribute('data-product-name');
+                    addToCart(prodName);
+                });
+            });
+
+            // تحديث واجهة السلة بعد جلب البيانات للحصول على الأسعار الصحيحة
+            updateCartUI(querySnapshot);
+
+        } catch (error) {
+            console.error("Error fetching products: ", error);
+            categories.forEach(cat => {
+                let el = document.getElementById(`container-${cat}`);
+                if(el) el.innerHTML = `<p style="color:red; font-size:0.9rem; padding:10px;">حدث خطأ أثناء تحميل البيانات.</p>`;
+            });
+        }
     }
 
-    function saveCart() {
-        localStorage.setItem("cart", JSON.stringify(cart));
-    }
-
+    // 3. دالة إضافة منتج إلى السلة
     function addToCart(productName) {
         const existingProduct = cart.find(item => item.name === productName);
         if (existingProduct) {
@@ -749,9 +807,14 @@
         } else {
             cart.push({ name: productName, qty: 1 });
         }
-        saveCart();
-        updateCartUI();
+        localStorage.setItem("cart", JSON.stringify(cart));
         
+        // إعادة جلب المنتجات لتحديث المجموع بشكل صحيح بناءً على بيانات الـ Firestore الحالية
+        getDocs(collection(db, "products")).then(snapshot => {
+            updateCartUI(snapshot);
+        });
+        
+        // تأثير حركة زر السلة
         const cartBtn = document.querySelector('.cart-icon-btn');
         if (cartBtn) {
             cartBtn.style.transition = 'transform 0.2s ease, color 0.2s ease';
@@ -765,13 +828,18 @@
         }
     }
 
-    function updateCartUI() {
+    // 4. دالة تحديث واجهة سلة التسوق
+    function updateCartUI(querySnapshot) {
         let totalCount = 0;
         let totalPrice = 0; 
         let cartItemsContainer = document.getElementById('cartItemsContainer');
         let cartFooterArea = document.getElementById('cartFooterArea');
         
-        let allProducts = JSON.parse(localStorage.getItem('myProducts')) || [];
+        // تحويل الوثائق القادمة من الفايربيس إلى مصفوفة للبحث فيها
+        let allProducts = [];
+        if (querySnapshot) {
+            querySnapshot.forEach(doc => allProducts.push(doc.data()));
+        }
 
         if (cart.length === 0) {
             cartItemsContainer.innerHTML = '<p class="empty-text">السلة فارغة حالياً..</p>';
@@ -794,16 +862,21 @@
 
                 totalPrice += (itemPrice * item.qty);
 
-                cartItemsContainer.innerHTML += `
-                    <div class="cart-item">
-                        <div class="cart-item-info">
-                            <h4>${item.name}</h4>
-                            <p style="color: var(--accent-color); font-size: 0.8rem; margin: 2px 0;">السعر: ${priceText}</p>
-                            <p>العدد: ${item.qty}</p>
-                        </div>
-                        <button class="remove-item-btn" onclick="removeFromCart(${index})">حذف</button>
+                // إنشاء عنصر السلة وتعيين حدث الحذف بربطه ديناميكياً
+                let itemEl = document.createElement('div');
+                itemEl.className = 'cart-item';
+                itemEl.innerHTML = `
+                    <div class="cart-item-info">
+                        <h4>${item.name}</h4>
+                        <p style="color: var(--accent-color); font-size: 0.8rem; margin: 2px 0;">السعر: ${priceText}</p>
+                        <p>العدد: ${item.qty}</p>
                     </div>
+                    <button class="remove-item-btn">حذف</button>
                 `;
+                itemEl.querySelector('.remove-item-btn').addEventListener('click', () => {
+                    removeFromCart(index, querySnapshot);
+                });
+                cartItemsContainer.appendChild(itemEl);
             });
         }
         document.getElementById('cartCount').innerText = totalCount;
@@ -814,54 +887,52 @@
         }
     }
 
-    function removeFromCart(index) {
+    function removeFromCart(index, querySnapshot) {
         cart.splice(index, 1);
-        saveCart();
-        updateCartUI();
+        localStorage.setItem("cart", JSON.stringify(cart));
+        updateCartUI(querySnapshot);
     }
 
-    function proceedToOrder(e) {
-        if (e) e.preventDefault();
+    // جعل الدوال التي تحتاج استدعاء من الـ HTML (خارج الموديول) تابعة للـ window object
+    window.toggleCart = function() {
+        document.getElementById('cartSidebar').classList.toggle('open');
+    }
 
+    window.proceedToOrder = function(e) {
+        if (e) e.preventDefault();
         if (cart.length === 0) {
             alert("السلة فارغة! يرجى إضافة منتجات أولاً.");
             return;
         }
-
-        localStorage.setItem("cart", JSON.stringify(cart));
         window.location.href = "order.html";
     }
 
+    window.scrollToTop = function() {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // تشغيل جلب البيانات عند تحميل الصفحة
+    window.addEventListener('DOMContentLoaded', () => {
+        loadProductsFromFirestore();
+    });
+
     /* سكربت سهم الصعود للأعلى */
-    window.onscroll = function() {
+    window.addEventListener('scroll', () => {
         let scrollTopBtn = document.getElementById("scrollTopBtn");
         if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {
             scrollTopBtn.classList.add("show");
         } else {
             scrollTopBtn.classList.remove("show");
         }
-    };
+    });
 
-    function scrollToTop() {
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        });
-    }
-
-    window.onload = function() {
-        loadStoredProducts();
-        updateCartUI();
-    };
-
-    /* سكربت الفلترة والبحث */
+    /* سكربت الفلترة والبحث السريع */
     document.getElementById("searchInput").addEventListener("keyup", function() {
         let value = this.value.toLowerCase().trim();
         let cards = document.querySelectorAll(".product-card");
 
         cards.forEach(card => {
             let title = card.querySelector(".product-title").innerText.toLowerCase();
-            
             if (title.includes(value)) {
                 card.style.display = "flex";
             } else {
