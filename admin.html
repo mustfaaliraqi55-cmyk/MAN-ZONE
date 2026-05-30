@@ -1,6 +1,214 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+    
 <head>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // إعدادات Firebase الخاصة بمشروعك
+        const firebaseConfig = {
+            apiKey: "AIzaSyCKqZSI29w9Cxb10-WmSII62pbtS3ZQGuc",
+            authDomain: "man-zone-iq.firebaseapp.com",
+            projectId: "man-zone-iq",
+            storageBucket: "man-zone-iq.appspot.com",
+            messagingSenderId: "192366160615",
+            appId: "1:192366160615:web:5d92d2ff0c7ed68d641042"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app); // تهيئة قاعدة البيانات
+
+        // حماية الصفحة
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = "login.html";
+            }
+        });
+
+        window.logoutUser = function() {
+            signOut(auth).then(() => {
+                window.location.href = "login.html";
+            }).catch((error) => {
+                alert("حدث خطأ أثناء تسجيل الخروج: " + error.message);
+            });
+        }
+
+        // جعل دوال التعامل مع البيانات متاحة للـ HTML
+        let editId = null;
+        let allProducts = [];
+
+        // دالة جلب المنتجات من الفايربيس وعرضها
+        window.loadProducts = async function() {
+            const listDiv = document.getElementById('productList');
+            const searchQuery = document.getElementById('pSearch').value.toLowerCase().trim();
+            
+            listDiv.innerHTML = '<p style="text-align:center; color:#aaa;">جاري تحميل المنتجات من السحابة...</p>';
+            
+            try {
+                const querySnapshot = await getDocs(collection(db, "products"));
+                allProducts = [];
+                querySnapshot.forEach((doc) => {
+                    allProducts.push({ id: doc.id, ...doc.data() });
+                });
+
+                let filteredProducts = allProducts.filter(p => {
+                    let nameMatch = (p.name || '').toLowerCase().includes(searchQuery);
+                    let brandMatch = (p.brand || '').toLowerCase().includes(searchQuery);
+                    let categoryMatch = (p.category || '').toLowerCase().includes(searchQuery);
+                    return nameMatch || brandMatch || categoryMatch;
+                });
+
+                if (filteredProducts.length === 0) {
+                    listDiv.innerHTML = '<p style="text-align:center; color:#666;">لا توجد نتائج مطابقة.</p>';
+                    return;
+                }
+
+                listDiv.innerHTML = '';
+                filteredProducts.forEach((p) => {
+                    let statusHTML = p.isOutOfStock 
+                        ? '<span class="status-badge status-out">نفذت الكمية</span>' 
+                        : '<span class="status-badge status-in">متوفر</span>';
+
+                    let bestSellerHTML = p.isBestSeller ? '<span class="status-badge badge-best">الأكثر مبيعاً</span>' : '';
+                    let newProductHTML = p.isNew ? '<span class="status-badge badge-new">جديد</span>' : '';
+
+                    listDiv.innerHTML += `
+                        <div class="product-item">
+                            <div class="product-info">
+                                <strong>${p.name}</strong>
+                                <span style="display: block; font-size: 14px; color: #aaa;">الماركة: ${p.brand || 'غير محددة'} | السعر: ${p.price} د.ع | القسم: ${p.category}</span>
+                                <div style="margin-top: 5px;">
+                                    ${statusHTML}
+                                    ${bestSellerHTML}
+                                    ${newProductHTML}
+                                </div>
+                            </div>
+                            <div class="actions">
+                                <button class="btn-edit" onclick="prepareEdit('${p.id}')">تعديل</button>
+                                <button class="btn-duplicate" onclick="duplicateProduct('${p.id}')">تدبيل 📋</button>
+                                <button class="btn-delete" onclick="deleteProduct('${p.id}')">حذف</button>
+                            </div>
+                        </div>`;
+                });
+            } catch (error) {
+                listDiv.innerHTML = '<p style="text-align:center; color:red;">حدث خطأ أثناء جلب البيانات: ' + error.message + '</p>';
+            }
+        }
+
+        // دالة حفظ أو تحديث منتج في الفايربيس
+        window.saveProduct = async function() {
+            let name = document.getElementById('pName').value.trim();
+            let brand = document.getElementById('pBrand').value.trim();
+            let img = document.getElementById('pImg').value.trim();
+            let price = document.getElementById('pPrice').value.trim();
+            let category = document.getElementById('pCategory').value;
+            let isOutOfStock = document.getElementById('pOutOfStock').checked;
+            let isBestSeller = document.getElementById('pIsBestSeller').checked;
+            let isNew = document.getElementById('pIsNew').checked;
+
+            if(!name || !price) {
+                alert("يرجى إدخال اسم المنتج والسعر على الأقل!");
+                return;
+            }
+
+            let pData = { name, brand, img, price, category, isOutOfStock, isBestSeller, isNew };
+            const mainBtn = document.getElementById('mainBtn');
+            mainBtn.disabled = true;
+            mainBtn.innerText = "جاري الحفظ بالسحابة...";
+
+            try {
+                if(editId === null) {
+                    // إضافة جديد
+                    await addDoc(collection(db, "products"), pData);
+                } else { 
+                    // تحديث الحالي
+                    await updateDoc(doc(db, "products", editId), pData);
+                    editId = null; 
+                    mainBtn.style.background = "#55c5d1";
+                }
+                mainBtn.innerText = "حفظ المنتج";
+                mainBtn.disabled = false;
+                clearInputs();
+                loadProducts();
+            } catch (error) {
+                alert("خطأ أثناء الحفظ: " + error.message);
+                mainBtn.disabled = false;
+                mainBtn.innerText = "حفظ المنتج";
+            }
+        }
+
+        // دالة تحضير التعديل
+        window.prepareEdit = function(id) {
+            let p = allProducts.find(item => item.id === id);
+            if(!p) return;
+            
+            document.getElementById('pName').value = p.name;
+            document.getElementById('pBrand').value = p.brand || '';
+            document.getElementById('pImg').value = p.img || '';
+            document.getElementById('pPrice').value = p.price;
+            document.getElementById('pCategory').value = p.category;
+            document.getElementById('pOutOfStock').checked = p.isOutOfStock || false;
+            document.getElementById('pIsBestSeller').checked = p.isBestSeller || false;
+            document.getElementById('pIsNew').checked = p.isNew || false;
+            
+            editId = id;
+            document.getElementById('mainBtn').innerText = "تحديث البيانات الحاليّة";
+            document.getElementById('mainBtn').style.background = "#f1c40f";
+        }
+
+        // دالة تدبيل منتج
+        window.duplicateProduct = async function(id) {
+            let originalProduct = allProducts.find(item => item.id === id);
+            if(!originalProduct) return;
+            
+            let duplicatedProduct = {
+                name: originalProduct.name + " (نسخة)",
+                brand: originalProduct.brand || '',
+                img: originalProduct.img || '',
+                price: originalProduct.price,
+                category: originalProduct.category,
+                isOutOfStock: originalProduct.isOutOfStock || false,
+                isBestSeller: originalProduct.isBestSeller || false,
+                isNew: originalProduct.isNew || false
+            };
+            
+            try {
+                await addDoc(collection(db, "products"), duplicatedProduct);
+                loadProducts();
+            } catch (error) {
+                alert("خطأ أثناء النسخ: " + error.message);
+            }
+        }
+
+        // دالة حذف منتج
+        window.deleteProduct = async function(id) {
+            if(confirm("هل أنت متأكد من حذف هذا المنتج نهائياً من السحابة؟")) {
+                try {
+                    await deleteDoc(doc(db, "products", id));
+                    loadProducts();
+                } catch (error) {
+                    alert("خطأ أثناء الحذف: " + error.message);
+                }
+            }
+        }
+
+        function clearInputs() {
+            document.getElementById('pName').value = '';
+            document.getElementById('pBrand').value = '';
+            document.getElementById('pImg').value = '';
+            document.getElementById('pPrice').value = '';
+            document.getElementById('pOutOfStock').checked = false;
+            document.getElementById('pIsBestSeller').checked = false;
+            document.getElementById('pIsNew').checked = false;
+        }
+
+        // تشغيل الجلب عند فتح الصفحة أول مرة
+        loadProducts();
+    </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة إدارة المنتجات الاحترافية</title>
@@ -58,7 +266,6 @@
             font-family: 'Tajawal', sans-serif;
             transition: 0.3s ease;
         }
-        #mainBtn { background: #55c5d1; color: #000; }
         #mainBtn:hover { filter: brightness(1.2); }
         
         .product-item { 
@@ -71,7 +278,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        .product-info span { display: block; font-size: 14px; color: #aaa; }
+        .product-info span { display: block; font-size: 16px; color: #000000; }
         .product-info strong { font-size: 16px; color: #fff; }
         
         .status-badge { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 5px; }
@@ -81,7 +288,7 @@
         .badge-new { background: #9b59b6; color: #fff; font-weight: bold; } 
         
         .actions { display: flex; gap: 5px; }
-        .actions button { width: auto; padding: 6px 12px; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;}
+        .actions button { width: auto; padding: 6px 12px; font-size: 13px; }
         .btn-edit { background: #f1c40f; color: #000; }
         .btn-duplicate { background: #3498db; color: #fff; } 
         .btn-delete { background: #ff5555; color: #fff; }
@@ -143,7 +350,7 @@
             <label for="pOutOfStock">المنتج غير متوفر في المخزن (نفذت الكمية)</label>
         </div>
 
-        <button id="mainBtn" onclick="saveProduct()">حفظ المنتج</button>
+        <button id="mainBtn" style="background:#55c5d1; color: #000;" onclick="saveProduct()">حفظ المنتج</button>
         
         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 25px 0;">
         
@@ -154,155 +361,5 @@
         <div id="productList"></div>
     </div>
 
-    <script>
-        // دالة الخروج المؤقتة
-        function logoutUser() {
-            window.location.href = "login.html";
-        }
-
-        let editIndex = null;
-
-        // دالة تحميل وعرض المنتجات
-        function loadProducts() {
-            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
-            let searchQuery = document.getElementById('pSearch').value.toLowerCase().trim();
-            let listDiv = document.getElementById('productList');
-            
-            listDiv.innerHTML = '';
-            
-            if(products.length === 0) {
-                listDiv.innerHTML = '<p style="text-align:center; color:#666;">لا توجد منتجات مضافة حالياً.</p>';
-                return;
-            }
-
-            products.forEach((p, i) => {
-                // تصفية البحث
-                if(searchQuery) {
-                    let nameMatch = p.name.toLowerCase().includes(searchQuery);
-                    let brandMatch = (p.brand || '').toLowerCase().includes(searchQuery);
-                    let catMatch = p.category.toLowerCase().includes(searchQuery);
-                    if(!nameMatch && !brandMatch && !catMatch) return;
-                }
-
-                let statusHTML = p.isOutOfStock 
-                    ? '<span class="status-badge status-out">نفذت الكمية</span>' 
-                    : '<span class="status-badge status-in">متوفر</span>';
-
-                let bestSellerHTML = p.isBestSeller ? '<span class="status-badge badge-best">الأكثر مبيعاً ⭐</span>' : '';
-                let newProductHTML = p.isNew ? '<span class="status-badge badge-new">جديد ✨</span>' : '';
-
-                listDiv.innerHTML += `
-                    <div class="product-item">
-                        <div class="product-info">
-                            <strong>${p.name}</strong>
-                            <span>الماركة: ${p.brand || 'غير محدد'} | السعر: ${p.price} د.ع | القسم: ${p.category}</span>
-                            <div style="margin-top: 5px;">
-                                ${statusHTML}
-                                ${bestSellerHTML}
-                                ${newProductHTML}
-                            </div>
-                        </div>
-                        <div class="actions">
-                            <button class="btn-edit" onclick="prepareEdit(${i})">تعديل</button>
-                            <button class="btn-duplicate" onclick="duplicateProduct(${i})">تدبيل 📋</button>
-                            <button class="btn-delete" onclick="deleteProduct(${i})">حذف</button>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        // دالة حفظ وتحديث المنتج
-        function saveProduct() {
-            let name = document.getElementById('pName').value.trim();
-            let brand = document.getElementById('pBrand').value.trim();
-            let img = document.getElementById('pImg').value.trim();
-            let price = document.getElementById('pPrice').value.trim();
-            let category = document.getElementById('pCategory').value;
-            let isOutOfStock = document.getElementById('pOutOfStock').checked;
-            let isBestSeller = document.getElementById('pIsBestSeller').checked;
-            let isNew = document.getElementById('pIsNew').checked;
-
-            if(!name || !price) {
-                alert("يرجى إدخال اسم المنتج والسعر على الأقل!");
-                return;
-            }
-
-            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
-            let p = { name, brand, img, price, category, isOutOfStock, isBestSeller, isNew };
-
-            if(editIndex === null) {
-                products.push(p);
-            } else {
-                products[editIndex] = p;
-                editIndex = null;
-                document.getElementById('mainBtn').innerText = "حفظ المنتج";
-                document.getElementById('mainBtn').style.background = "#55c5d1";
-            }
-
-            localStorage.setItem('myProducts', JSON.stringify(products));
-            clearInputs();
-            loadProducts();
-        }
-
-        function prepareEdit(i) {
-            let products = JSON.parse(localStorage.getItem('myProducts'));
-            let p = products[i];
-            
-            document.getElementById('pName').value = p.name;
-            document.getElementById('pBrand').value = p.brand || '';
-            document.getElementById('pImg').value = p.img || '';
-            document.getElementById('pPrice').value = p.price;
-            document.getElementById('pCategory').value = p.category;
-            document.getElementById('pOutOfStock').checked = p.isOutOfStock || false;
-            document.getElementById('pIsBestSeller').checked = p.isBestSeller || false;
-            document.getElementById('pIsNew').checked = p.isNew || false;
-            
-            editIndex = i;
-            document.getElementById('mainBtn').innerText = "تحديث البيانات الحاليّة";
-            document.getElementById('mainBtn').style.background = "#f1c40f";
-        }
-
-        function duplicateProduct(i) {
-            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
-            let originalProduct = products[i];
-            
-            let duplicatedProduct = {
-                name: originalProduct.name + " (نسخة)",
-                brand: originalProduct.brand || '',
-                img: originalProduct.img || '',
-                price: originalProduct.price,
-                category: originalProduct.category,
-                isOutOfStock: originalProduct.isOutOfStock || false,
-                isBestSeller: originalProduct.isBestSeller || false,
-                isNew: originalProduct.isNew || false
-            };
-            
-            products.splice(i + 1, 0, duplicatedProduct);
-            localStorage.setItem('myProducts', JSON.stringify(products));
-            loadProducts();
-        }
-
-        function deleteProduct(i) {
-            if(confirm("هل أنت متأكد من حذف هذا المنتج؟")) {
-                let products = JSON.parse(localStorage.getItem('myProducts'));
-                products.splice(i, 1);
-                localStorage.setItem('myProducts', JSON.stringify(products));
-                loadProducts();
-            }
-        }
-
-        function clearInputs() {
-            document.getElementById('pName').value = '';
-            document.getElementById('pBrand').value = '';
-            document.getElementById('pImg').value = '';
-            document.getElementById('pPrice').value = '';
-            document.getElementById('pOutOfStock').checked = false;
-            document.getElementById('pIsBestSeller').checked = false;
-            document.getElementById('pIsNew').checked = false;
-        }
-
-        // تشغيل الجلب التلقائي عند فتح الصفحة
-        window.onload = loadProducts;
-    </script>
 </body>
 </html>
