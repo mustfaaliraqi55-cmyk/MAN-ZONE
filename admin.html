@@ -1,197 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-    
 <head>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-        import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-
-        // إعدادات Firebase الخاصة بمشروعك
-        const firebaseConfig = {
-            apiKey: "AIzaSyCKqZSI29w9Cxb10-WmSII62pbtS3ZQGuc",
-            authDomain: "man-zone-iq.firebaseapp.com",
-            projectId: "man-zone-iq",
-            storageBucket: "man-zone-iq.appspot.com",
-            messagingSenderId: "192366160615",
-            appId: "1:192366160615:web:5d92d2ff0c7ed68d641042",
-            databaseURL: "https://man-zone-iq-default-rtdb.firebaseio.com"
-        };
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getDatabase(app); 
-
-        // حماية لوحة الإدارة
-        onAuthStateChanged(auth, (user) => {
-            if (!user) {
-                window.location.href = "login.html"; 
-            }
-        });
-
-        window.logoutUser = function() {
-            signOut(auth).then(() => {
-                window.location.href = "login.html";
-            }).catch((error) => {
-                alert("حدث خطأ أثناء تسجيل الخروج: " + error.message);
-            });
-        }
-
-        let currentEditId = null;
-
-        // حفظ وتحديث المنتج في Firebase
-        window.saveProduct = function() {
-            let name = document.getElementById('pName').value.trim();
-            let brand = document.getElementById('pBrand').value.trim();
-            let img = document.getElementById('pImg').value.trim();
-            let price = document.getElementById('pPrice').value.trim();
-            let category = document.getElementById('pCategory').value;
-            let isOutOfStock = document.getElementById('pOutOfStock').checked;
-            let isBestSeller = document.getElementById('pIsBestSeller').checked;
-            let isNew = document.getElementById('pIsNew').checked;
-
-            if(!name || !price) {
-                alert("يرجى إدخال اسم المنتج والسعر على الأقل!");
-                return;
-            }
-
-            let p = { name, brand, img, price, category, isOutOfStock, isBestSeller, isNew };
-
-            if(currentEditId === null) {
-                const dbRef = ref(db, 'products');
-                push(dbRef, p);
-            } else { 
-                const dbRef = ref(db, 'products/' + currentEditId);
-                update(dbRef, p);
-                currentEditId = null; 
-                document.getElementById('mainBtn').innerText = "حفظ المنتج";
-                document.getElementById('mainBtn').style.background = "#55c5d1";
-            }
-
-            clearInputs();
-        }
-
-        // جلب المنتجات وعرضها فوراً في لوحة التحكم
-        const productsRef = ref(db, 'products');
-        onValue(productsRef, (snapshot) => {
-            const data = snapshot.val();
-            let productsArray = [];
-            
-            if (data) {
-                productsArray = Object.keys(data).map(key => {
-                    return { id: key, ...data[key] };
-                });
-            }
-            
-            window.allProducts = productsArray; 
-            renderProducts(productsArray);
-        });
-
-        window.prepareEdit = function(id) {
-            let p = window.allProducts.find(prod => prod.id === id);
-            if(!p) return;
-            
-            document.getElementById('pName').value = p.name;
-            document.getElementById('pBrand').value = p.brand || '';
-            document.getElementById('pImg').value = p.img || '';
-            document.getElementById('pPrice').value = p.price;
-            document.getElementById('pCategory').value = p.category;
-            document.getElementById('pOutOfStock').checked = p.isOutOfStock || false;
-            document.getElementById('pIsBestSeller').checked = p.isBestSeller || false;
-            document.getElementById('pIsNew').checked = p.isNew || false;
-            
-            currentEditId = id;
-            document.getElementById('mainBtn').innerText = "تحديث البيانات الحاليّة";
-            document.getElementById('mainBtn').style.background = "#f1c40f";
-        }
-
-        window.duplicateProduct = function(id) {
-            let originalProduct = window.allProducts.find(prod => prod.id === id);
-            if(!originalProduct) return;
-            
-            let duplicatedProduct = {
-                name: originalProduct.name + " (نسخة)",
-                brand: originalProduct.brand || '',
-                img: originalProduct.img || '',
-                price: originalProduct.price,
-                category: originalProduct.category,
-                isOutOfStock: originalProduct.isOutOfStock || false,
-                isBestSeller: originalProduct.isBestSeller || false,
-                isNew: originalProduct.isNew || false
-            };
-            
-            const dbRef = ref(db, 'products');
-            push(dbRef, duplicatedProduct);
-        }
-
-        window.deleteProduct = function(id) {
-            if(confirm("هل أنت متأكد من حذف هذا المنتج نهائياً من النظام؟")) {
-                const dbRef = ref(db, 'products/' + id);
-                remove(dbRef);
-            }
-        }
-
-        window.loadProducts = function() {
-            let searchQuery = document.getElementById('pSearch').value.toLowerCase().trim();
-            if(!window.allProducts) return;
-
-            let filtered = window.allProducts.filter(p => {
-                let nameMatch = p.name.toLowerCase().includes(searchQuery);
-                let brandMatch = (p.brand || '').toLowerCase().includes(searchQuery);
-                let categoryMatch = p.category.toLowerCase().includes(searchQuery);
-                return nameMatch || brandMatch || categoryMatch;
-            });
-
-            renderProducts(filtered);
-        }
-
-        function renderProducts(productsList) {
-            let listDiv = document.getElementById('productList');
-            if (productsList.length === 0) {
-                listDiv.innerHTML = '<p style="text-align:center; color:#666;">لا توجد نتائج مطابقة للبحث.</p>';
-                return;
-            }
-
-            listDiv.innerHTML = '';
-            productsList.forEach((p) => {
-                let statusHTML = p.isOutOfStock 
-                    ? '<span class="status-badge status-out">نفذت الكمية</span>' 
-                    : '<span class="status-badge status-in">متوفر</span>';
-
-                let bestSellerHTML = p.isBestSeller ? '<span class="status-badge badge-best">الأكثر مبيعاً ⭐</span>' : '';
-                let newProductHTML = p.isNew ? '<span class="status-badge badge-new">جديد ✨</span>' : '';
-
-                listDiv.innerHTML += `
-                    <div class="product-item">
-                        <div class="product-info">
-                            <strong>${p.name}</strong>
-                            <span style="display: block; font-size: 14px; color: #aaa;">الماركة: ${p.brand || 'غير محدد'} | السعر: ${p.price} د.ع | القسم: ${p.category}</span>
-                            <div style="margin-top: 5px;">
-                                ${statusHTML}
-                                ${bestSellerHTML}
-                                ${newProductHTML}
-                            </div>
-                        </div>
-                        <div class="actions">
-                            <button class="btn-edit" onclick="prepareEdit('${p.id}')">تعديل</button>
-                            <button class="btn-duplicate" onclick="duplicateProduct('${p.id}')">تدبيل 📋</button>
-                            <button class="btn-delete" onclick="deleteProduct('${p.id}')">حذف</button>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function clearInputs() {
-            document.getElementById('pName').value = '';
-            document.getElementById('pBrand').value = '';
-            document.getElementById('pImg').value = '';
-            document.getElementById('pPrice').value = '';
-            document.getElementById('pOutOfStock').checked = false;
-            document.getElementById('pIsBestSeller').checked = false;
-            document.getElementById('pIsNew').checked = false;
-        }
-    </script>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة إدارة المنتجات الاحترافية</title>
@@ -249,6 +58,7 @@
             font-family: 'Tajawal', sans-serif;
             transition: 0.3s ease;
         }
+        #mainBtn { background: #55c5d1; color: #000; }
         #mainBtn:hover { filter: brightness(1.2); }
         
         .product-item { 
@@ -261,7 +71,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        .product-info span { display: block; font-size: 16px; color: #aaa; }
+        .product-info span { display: block; font-size: 14px; color: #aaa; }
         .product-info strong { font-size: 16px; color: #fff; }
         
         .status-badge { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 5px; }
@@ -333,7 +143,7 @@
             <label for="pOutOfStock">المنتج غير متوفر في المخزن (نفذت الكمية)</label>
         </div>
 
-        <button id="mainBtn" style="background:#55c5d1; color: #000;" onclick="saveProduct()">حفظ المنتج</button>
+        <button id="mainBtn" onclick="saveProduct()">حفظ المنتج</button>
         
         <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 25px 0;">
         
@@ -344,5 +154,155 @@
         <div id="productList"></div>
     </div>
 
+    <script>
+        // دالة الخروج المؤقتة
+        function logoutUser() {
+            window.location.href = "login.html";
+        }
+
+        let editIndex = null;
+
+        // دالة تحميل وعرض المنتجات
+        function loadProducts() {
+            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+            let searchQuery = document.getElementById('pSearch').value.toLowerCase().trim();
+            let listDiv = document.getElementById('productList');
+            
+            listDiv.innerHTML = '';
+            
+            if(products.length === 0) {
+                listDiv.innerHTML = '<p style="text-align:center; color:#666;">لا توجد منتجات مضافة حالياً.</p>';
+                return;
+            }
+
+            products.forEach((p, i) => {
+                // تصفية البحث
+                if(searchQuery) {
+                    let nameMatch = p.name.toLowerCase().includes(searchQuery);
+                    let brandMatch = (p.brand || '').toLowerCase().includes(searchQuery);
+                    let catMatch = p.category.toLowerCase().includes(searchQuery);
+                    if(!nameMatch && !brandMatch && !catMatch) return;
+                }
+
+                let statusHTML = p.isOutOfStock 
+                    ? '<span class="status-badge status-out">نفذت الكمية</span>' 
+                    : '<span class="status-badge status-in">متوفر</span>';
+
+                let bestSellerHTML = p.isBestSeller ? '<span class="status-badge badge-best">الأكثر مبيعاً ⭐</span>' : '';
+                let newProductHTML = p.isNew ? '<span class="status-badge badge-new">جديد ✨</span>' : '';
+
+                listDiv.innerHTML += `
+                    <div class="product-item">
+                        <div class="product-info">
+                            <strong>${p.name}</strong>
+                            <span>الماركة: ${p.brand || 'غير محدد'} | السعر: ${p.price} د.ع | القسم: ${p.category}</span>
+                            <div style="margin-top: 5px;">
+                                ${statusHTML}
+                                ${bestSellerHTML}
+                                ${newProductHTML}
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn-edit" onclick="prepareEdit(${i})">تعديل</button>
+                            <button class="btn-duplicate" onclick="duplicateProduct(${i})">تدبيل 📋</button>
+                            <button class="btn-delete" onclick="deleteProduct(${i})">حذف</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        // دالة حفظ وتحديث المنتج
+        function saveProduct() {
+            let name = document.getElementById('pName').value.trim();
+            let brand = document.getElementById('pBrand').value.trim();
+            let img = document.getElementById('pImg').value.trim();
+            let price = document.getElementById('pPrice').value.trim();
+            let category = document.getElementById('pCategory').value;
+            let isOutOfStock = document.getElementById('pOutOfStock').checked;
+            let isBestSeller = document.getElementById('pIsBestSeller').checked;
+            let isNew = document.getElementById('pIsNew').checked;
+
+            if(!name || !price) {
+                alert("يرجى إدخال اسم المنتج والسعر على الأقل!");
+                return;
+            }
+
+            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+            let p = { name, brand, img, price, category, isOutOfStock, isBestSeller, isNew };
+
+            if(editIndex === null) {
+                products.push(p);
+            } else {
+                products[editIndex] = p;
+                editIndex = null;
+                document.getElementById('mainBtn').innerText = "حفظ المنتج";
+                document.getElementById('mainBtn').style.background = "#55c5d1";
+            }
+
+            localStorage.setItem('myProducts', JSON.stringify(products));
+            clearInputs();
+            loadProducts();
+        }
+
+        function prepareEdit(i) {
+            let products = JSON.parse(localStorage.getItem('myProducts'));
+            let p = products[i];
+            
+            document.getElementById('pName').value = p.name;
+            document.getElementById('pBrand').value = p.brand || '';
+            document.getElementById('pImg').value = p.img || '';
+            document.getElementById('pPrice').value = p.price;
+            document.getElementById('pCategory').value = p.category;
+            document.getElementById('pOutOfStock').checked = p.isOutOfStock || false;
+            document.getElementById('pIsBestSeller').checked = p.isBestSeller || false;
+            document.getElementById('pIsNew').checked = p.isNew || false;
+            
+            editIndex = i;
+            document.getElementById('mainBtn').innerText = "تحديث البيانات الحاليّة";
+            document.getElementById('mainBtn').style.background = "#f1c40f";
+        }
+
+        function duplicateProduct(i) {
+            let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+            let originalProduct = products[i];
+            
+            let duplicatedProduct = {
+                name: originalProduct.name + " (نسخة)",
+                brand: originalProduct.brand || '',
+                img: originalProduct.img || '',
+                price: originalProduct.price,
+                category: originalProduct.category,
+                isOutOfStock: originalProduct.isOutOfStock || false,
+                isBestSeller: originalProduct.isBestSeller || false,
+                isNew: originalProduct.isNew || false
+            };
+            
+            products.splice(i + 1, 0, duplicatedProduct);
+            localStorage.setItem('myProducts', JSON.stringify(products));
+            loadProducts();
+        }
+
+        function deleteProduct(i) {
+            if(confirm("هل أنت متأكد من حذف هذا المنتج؟")) {
+                let products = JSON.parse(localStorage.getItem('myProducts'));
+                products.splice(i, 1);
+                localStorage.setItem('myProducts', JSON.stringify(products));
+                loadProducts();
+            }
+        }
+
+        function clearInputs() {
+            document.getElementById('pName').value = '';
+            document.getElementById('pBrand').value = '';
+            document.getElementById('pImg').value = '';
+            document.getElementById('pPrice').value = '';
+            document.getElementById('pOutOfStock').checked = false;
+            document.getElementById('pIsBestSeller').checked = false;
+            document.getElementById('pIsNew').checked = false;
+        }
+
+        // تشغيل الجلب التلقائي عند فتح الصفحة
+        window.onload = loadProducts;
+    </script>
 </body>
 </html>
