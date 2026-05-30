@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+    
+<head>
+ <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
+        // !!! نفس البيانات التي وضعتها في login.html ضعها هنا بالضبط !!!
+        const firebaseConfig = {
+            apiKey: "AIzaSyCKqZSI29w9Cxb10-WmSII62pbtS3ZQGuc",
+            authDomain: "man-zone-iq.firebaseapp.com",
+            projectId: "man-zone-iq",
+            storageBucket: "man-zone-iq.appspot.com",
+            messagingSenderId: "192366160615",
+            appId: "1:192366160615:web:5d92d2ff0c7ed68d641042"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // الحماية: أي شخص يفتح الصفحة، يتم فحصه فوراً
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = "login.html"; // إذا لم يسجل دخول، يطرده
+            }
+        });
+
+        // دالة تسجيل الخروج لجعلها متاحة عند الضغط على الزر
+        window.logoutUser = function() {
+            signOut(auth).then(() => {
+                window.location.href = "login.html";
+            }).catch((error) => {
+                alert("حدث خطأ أثناء تسجيل الخروج: " + error.message);
+            });
+        }
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة إدارة المنتجات الاحترافية</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+        
+        body {
+            background-color: #0b0b0b;
+            background-image: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #0b0b0b 70%);
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            font-family: 'Tajawal', sans-serif;
+        }
+        .admin-box { 
+            width: 100%;
+            max-width: 500px; 
+            margin: 30px auto; 
+            background: #121212; 
+            padding: 25px; 
+            border-radius: 12px; 
+            border: 1px solid #1f1f1f; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        h2, h3 { text-align: center; color: #55c5d1; margin-top: 0; }
+        
+        label { display: block; margin-top: 10px; font-size: 14px; color: #aaa; }
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 6px 0 15px 0; 
+            background: #1a1a1a; 
+            border: 1px solid #333; 
+            color: #fff; 
+            border-radius: 6px; 
+            box-sizing: border-box;
+            font-family: 'Tajawal', sans-serif;
+        }
+        input:focus, select:focus { border-color: #55c5d1; outline: none; }
+        
+        .checkbox-container { display: flex; align-items: center; margin-bottom: 15px; }
+        .checkbox-container input { width: auto; margin: 0 0 0 10px; cursor: pointer; }
+        
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-family: 'Tajawal', sans-serif;
+            transition: 0.3s ease;
+        }
+        #mainBtn:hover { filter: brightness(1.2); }
+        
+        .product-item { 
+            background: #1a1a1a;
+            padding: 15px; 
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #2d2d2d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .product-info span { display: block; font-size: 16px; color: #000000; }
+        .product-info strong { font-size: 16px; color: #fff; }
+        
+        /* شارات الحالة والتميز */
+        .status-badge { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; margin-left: 5px; }
+        .status-out { background: #ff5555; color: #fff; }
+        .status-in { background: #2ecc71; color: #fff; }
+        .badge-best { background: #00bcd4; color: #000; font-weight: bold; } /* لون الفيروزي للأكثر مبيعاً */
+        .badge-new { background: #9b59b6; color: #fff; font-weight: bold; } /* لون البنفسجي للجديد */
+        
+        .actions { display: flex; gap: 5px; }
+        .actions button { width: auto; padding: 6px 12px; font-size: 13px; }
+        .btn-edit { background: #f1c40f; color: #000; }
+        .btn-duplicate { background: #3498db; color: #fff; } 
+        .btn-delete { background: #ff5555; color: #fff; }
+
+        .btn-logout {
+            background: #ff5555;
+            color: #fff;
+            padding: 6px 15px;
+            font-size: 13px;
+            width: auto;
+            margin-bottom: 20px;
+            display: block;
+            margin-right: auto;
+        }
+        .btn-logout:hover { background: #c0392b; }
+
+        .search-box {
+            border: 1px solid #55c5d1;
+            background: #121212;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="admin-box">
+        <button class="btn-logout" onclick="logoutUser()">تسجيل الخروج 🚪</button>
+
+        <h2>لوحة إدارة المنتجات</h2>
+        
+        <input type="text" id="pName" placeholder="اسم المنتج">
+        <input type="text" id="pBrand" placeholder="الماركة">
+        <input type="text" id="pImg" placeholder="رابط الصورة (مثال: ./items/1.jpg)">
+        <input type="number" id="pPrice" placeholder="السعر">
+        
+        <select id="pCategory">
+            <option value="rolex">رولكس</option>
+            <option value="patek">باتيك فيليب</option>
+            <option value="audemars">أوديمار بيغيه</option>
+            <option value="cartier">كارتييه</option>
+            <option value="omega">أوميغا</option>
+            <option value="tag">تاغ هوير</option>
+            <option value="hublot">هوبلو</option>
+        </select>
+
+        <div class="checkbox-container">
+            <input type="checkbox" id="pIsBestSeller">
+            <label for="pIsBestSeller">تمييز المنتج كـ (الأكثر مبيعاً ⭐)</label>
+        </div>
+
+        <div class="checkbox-container">
+            <input type="checkbox" id="pIsNew">
+            <label for="pIsNew">تمييز المنتج كـ (وصل حديثاً ✨)</label>
+        </div>
+
+        <div class="checkbox-container">
+            <input type="checkbox" id="pOutOfStock">
+            <label for="pOutOfStock">المنتج غير متوفر في المخزن (نفذت الكمية)</label>
+        </div>
+
+        <button id="mainBtn" style="background:#55c5d1; color: #000;" onclick="saveProduct()">حفظ المنتج</button>
+        
+        <hr style="border: 0; border-top: 1px solid #2d2d2d; margin: 25px 0;">
+        
+        <h3>المنتجات الحالية</h3>
+        
+        <input type="text" id="pSearch" class="search-box" placeholder="🔍 ابحث عن منتج بالاسم، الماركة أو القسم..." oninput="loadProducts()">
+
+        <div id="productList"></div>
+    </div>
+
+    <script>
+let editIndex = -1;
+
+// 1. دالة عرض وتصفية المنتجات
+function loadProducts() {
+    let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+    let listDiv = document.getElementById('productList');
+    
+    let searchQuery = document.getElementById('pSearch').value.toLowerCase().trim();
+    
+    let filteredProducts = products.filter(p => {
+        let nameMatch = p.name.toLowerCase().includes(searchQuery);
+        let brandMatch = (p.brand || '').toLowerCase().includes(searchQuery);
+        let categoryMatch = p.category.toLowerCase().includes(searchQuery);
+        
+        return nameMatch || brandMatch || categoryMatch;
+    });
+
+    if (filteredProducts.length === 0) {
+        listDiv.innerHTML = '<p style="text-align:center; color:#666;">لا توجد نتائج مطابقة للبحث.</p>';
+        return;
+    }
+
+    listDiv.innerHTML = '';
+    filteredProducts.forEach((p) => {
+        let originalIndex = products.findIndex(origP => origP === p);
+        
+        // بناء شارات العرض والتمييز
+        let statusHTML = p.isOutOfStock 
+            ? '<span class="status-badge status-out">نفذت الكمية</span>' 
+            : '<span class="status-badge status-in">متوفر</span>';
+
+        let bestSellerHTML = p.isBestSeller ? '<span class="status-badge badge-best">الأكثر مبيعاً</span>' : '';
+        let newProductHTML = p.isNew ? '<span class="status-badge badge-new">جديد</span>' : '';
+
+        listDiv.innerHTML += `
+            <div class="product-item" style="display: flex; justify-content: space-between; align-items: center; background: #1a1a1a; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #2d2d2d;">
+                <div class="product-info">
+                    <strong>${p.name}</strong>
+                    <span style="display: block; font-size: 14px; color: #aaa;">الماركة: ${p.brand || 'غير محددة'} | السعر: ${p.price} د.ع | القسم: ${p.category}</span>
+                    <div style="margin-top: 5px;">
+                        ${statusHTML}
+                        ${bestSellerHTML}
+                        ${newProductHTML}
+                    </div>
+                </div>
+                <div class="actions" style="display: flex; gap: 5px;">
+                    <button class="btn-edit" style="background: #f1c40f; color: #000; padding: 6px 12px; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="prepareEdit(${originalIndex})">تعديل</button>
+                    <button class="btn-duplicate" style="background: #3498db; color: #fff; padding: 6px 12px; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="duplicateProduct(${originalIndex})">تدبيل 📋</button>
+                    <button class="btn-delete" style="background: #ff5555; color: #fff; padding: 6px 12px; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="deleteProduct(${originalIndex})">حذف</button>
+                </div>
+            </div>`;
+    });
+}
+
+// 2. دالة حفظ (إضافة أو تحديث) منتج
+function saveProduct() {
+    let name = document.getElementById('pName').value.trim();
+    let brand = document.getElementById('pBrand').value.trim();
+    let img = document.getElementById('pImg').value.trim();
+    let price = document.getElementById('pPrice').value.trim();
+    let category = document.getElementById('pCategory').value;
+    let isOutOfStock = document.getElementById('pOutOfStock').checked;
+    let isBestSeller = document.getElementById('pIsBestSeller').checked;
+    let isNew = document.getElementById('pIsNew').checked;
+
+    if(!name || !price) {
+        alert("يرجى إدخال اسم المنتج والسعر على الأقل!");
+        return;
+    }
+
+    let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+    let p = { name, brand, img, price, category, isOutOfStock, isBestSeller, isNew };
+
+    if(editIndex === -1) {
+        products.push(p);
+    } else { 
+        products[editIndex] = p; 
+        editIndex = -1; 
+        document.getElementById('mainBtn').innerText = "حفظ المنتج";
+        document.getElementById('mainBtn').style.background = "#55c5d1";
+    }
+
+    localStorage.setItem('myProducts', JSON.stringify(products));
+    clearInputs();
+    loadProducts();
+}
+
+// 3. دالة جلب بيانات المنتج للحقول لتعديلها
+function prepareEdit(i) {
+    let products = JSON.parse(localStorage.getItem('myProducts'));
+    let p = products[i];
+    
+    document.getElementById('pName').value = p.name;
+    document.getElementById('pBrand').value = p.brand || '';
+    document.getElementById('pImg').value = p.img || '';
+    document.getElementById('pPrice').value = p.price;
+    document.getElementById('pCategory').value = p.category;
+    document.getElementById('pOutOfStock').checked = p.isOutOfStock || false;
+    document.getElementById('pIsBestSeller').checked = p.isBestSeller || false;
+    document.getElementById('pIsNew').checked = p.isNew || false;
+    
+    editIndex = i;
+    document.getElementById('mainBtn').innerText = "تحديث البيانات الحاليّة";
+    document.getElementById('mainBtn').style.background = "#f1c40f";
+}
+
+// 4. دالة تدبيل (تكرار واستنساخ) المنتج
+function duplicateProduct(i) {
+    let products = JSON.parse(localStorage.getItem('myProducts')) || [];
+    let originalProduct = products[i];
+    
+    let duplicatedProduct = {
+        name: originalProduct.name + " (نسخة)",
+        brand: originalProduct.brand,
+        img: originalProduct.img,
+        price: originalProduct.price,
+        category: originalProduct.category,
+        isOutOfStock: originalProduct.isOutOfStock,
+        isBestSeller: originalProduct.isBestSeller,
+        isNew: originalProduct.isNew
+    };
+    
+    products.splice(i + 1, 0, duplicatedProduct);
+    localStorage.setItem('myProducts', JSON.stringify(products));
+    loadProducts();
+}
+
+// 5. دالة حذف منتج
+function deleteProduct(i) {
+    if(confirm("هل أنت متأكد من حذف هذا المنتج؟")) {
+        let products = JSON.parse(localStorage.getItem('myProducts'));
+        products.splice(i, 1);
+        localStorage.setItem('myProducts', JSON.stringify(products));
+        loadProducts();
+    }
+}
+
+// 6. دالة تفريغ الخانات بعد الحفظ
+function clearInputs() {
+    document.getElementById('pName').value = '';
+    document.getElementById('pBrand').value = '';
+    document.getElementById('pImg').value = '';
+    document.getElementById('pPrice').value = '';
+    document.getElementById('pOutOfStock').checked = false;
+    document.getElementById('pIsBestSeller').checked = false;
+    document.getElementById('pIsNew').checked = false;
+}
+
+// تشغيل النظام
+loadProducts();
+    </script>
+
+</body>
+</html>
